@@ -157,3 +157,20 @@ self.addEventListener('sync', (e) => {
 self.addEventListener('push', (e) => {
     console.error(e);
 });
+
+self.addEventListener('notificationclick', (e) => {
+    const notification = e.notification;
+    const action = e.action;
+    console.log(action)
+
+    if(action === 'confirm') {
+        // Cualquier accion
+        notification.close();
+    } else {
+        notification.close();
+    }
+});
+
+self.addEventListener('notificationclose', (e) => {
+    console.log('Se cerró y no haremos nada');
+});
