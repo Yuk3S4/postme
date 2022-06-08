@@ -6,6 +6,7 @@ let BTN_CANCEL_POST;
 let deferredPrompt;
 let TITLE;
 let DESCRIPTION;
+let DB_POUCH;
 
 // Funciones
 const showPostModal = () => {
@@ -26,15 +27,25 @@ const sendData = async (e) => {
         TITLE = document.getElementById('title').value;
         DESCRIPTION = document.getElementById('description').value;
         if(TITLE && DESCRIPTION) {
-            console.log(db);
-            await db.collection('posts').add({
+            const post = {
                 title: TITLE,
-                description: DESCRIPTION,
-                timestamp: firebase.firestore.FieldValue.serverTimestamp()
-            });
+                description: DESCRIPTION
+            }
+            // Vamos a utilizar el SyncManager 
+            if(window.SyncManager) {
+                // Grabar o armar nuestra lógica
+                const readySW = await navigator.serviceWorker.ready;
+                await readySW.sync.register('new-post');
+                post._id = new Date().toISOString();
+                await DB_POUCH.put(post);
+                
+            } else {
+                post.timestamp = firebase.firestore.FieldValue.serverTimestamp()
+                await db.collection('posts').add(post);
+            }
             const data = {
                 message: 'Registro exitosamente almacenado',
-                timeout: 1500
+                timeout: 5000
             };
             Message().MaterialSnackbar.showSnackbar(data);
         } else {
@@ -53,6 +64,42 @@ const sendData = async (e) => {
     }
 };
 
+const showNotification = () => {
+    // new Notification('Notificaciones exitosamente activadas');
+    navigator.serviceWorker.getRegistration()
+        .then(instancia => {
+            instancia.showNotification('Notificaciones exitosamente activadas', {
+                body: 'El cuerpo de la notificacion',
+                icon: 'src/images/icons/icon-144x144.png',
+                image: 'src/images/computer.jpg',
+                badge: 'src/images/icons/icon-144x144.png',
+                dir: 'ltr',
+                tag: 'notification-postme',
+                requireInteraction: true,
+                vibrate: [100, 50, 200],
+                actions: [
+                    { action: 'confirm', title: 'Aceptar', icon: 'src/images/icons/icon-144x144.png' },
+                    { action: 'cancel', title: 'Cancelar', icon: 'src/images/icons/icon-144x144.png' }
+                ]
+            });
+        })
+        .catch(err => console.log(err.message))
+};
+
+const requestPermission = async () => {
+    const result = await Notification.requestPermission();
+    if(result !== 'granted') {
+        const data = {
+            message: 'El usuario no activó las notificaciones',
+            timeout: 5000
+        };
+        Message('error').MaterialSnackbar.showSnackbar(data);
+    } else {
+        // configuracionSubscripcion();
+        showNotification();
+    }
+}
+
 window.addEventListener('beforeinstallprompt', (e) => { // Para que no aparezca la pantalla de quiere instalar la app??
     e.preventDefault();
     deferredPrompt = e;
@@ -61,6 +108,9 @@ window.addEventListener('beforeinstallprompt', (e) => { // Para que no aparezca 
 // Cuando se cargue todo nuestro DOM
 window.addEventListener('load', async () => {
     try {
+        // Declarando mi instancia de base de datos creada por PouchDB
+        DB_POUCH = new PouchDB('posts');
+
         MAIN = document.querySelector('#main');
         MODAL_POST = document.querySelector('#modal-post-section');
         BTN_SHOW_POST = document.querySelector('#btn-upload-post');
@@ -84,7 +134,10 @@ window.addEventListener('load', async () => {
         window.Loading = (option = 'block') => {
             document.getElementById('loading').style.display = option;
         };
-    
+
+        // Seleccion notificaciones
+        BTN_NOTIFICATIONS = document.getElementById('notifications-install');
+        BTN_NOTIFICATIONS.addEventListener('click', requestPermission)    ;
         // Agarrando el boton enviar post
         const btnPostSubmit = document.getElementById('btn-post-submit');
         btnPostSubmit.addEventListener('click', (e) => sendData(e));
